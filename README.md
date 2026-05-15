@@ -8,7 +8,7 @@
 Official implementation of the paper:
 
 > **Wiener-Hopf Residual Dynamic Channel Charting for 6G Semantic Localization**  
-> Andrea Piroddi, Aldo Kanakis  
+> Andrea Piroddi, Triantafyllos Kanakis, Michael Opoku Ogyeman  
 > IEEE Wireless Communications Letters, 2025  
 > [[Paper]](#) · [[arXiv]](#) · [[DICHASUS Dataset]](https://dichasus.inue.uni-stuttgart.de/datasets/data/dichasus-cf0x/)
 
