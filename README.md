@@ -215,7 +215,7 @@ If you use this code in your research, please cite:
 
 ```bibtex
 @article{piroddi2025whrdcc,
-  author  = {Piroddi, Andrea and Kanakis, Aldo},
+  author  = {Piroddi, Andrea and Kanakis, Triantafyllos, Opoku Ogyeman Michael},
   title   = {Wiener-Hopf Residual Dynamic Channel Charting
              for {6G} Semantic Localization},
   journal = {IEEE Wireless Communications Letters},
