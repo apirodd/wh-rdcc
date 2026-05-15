@@ -1,0 +1,38 @@
+# Data (troppo grande per GitHub)
+data_raw/
+data/
+*.tfrecords
+*.npy
+*.pt
+
+# Eccezioni: file di configurazione piccoli
+!data/ablation_results.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+venv/
+venv_whrdcc/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Colab
+*.ipynb
+
+# MacOS
+.DS_Store
+
+# Figure generate (tenere solo PDF finali)
+figures/*.png
+
+# Runs e checkpoint temporanei
+runs/
+*.log
+
+# Editor
+.vscode/
+.idea/
