@@ -1,0 +1,129 @@
+# config/default.yaml
+# WH-RDCC: Wiener-Hopf Residual Dynamic Channel Charting
+# Configurazione principale
+
+# ============================================================
+# Percorsi
+# ============================================================
+paths:
+  project_dir: "/content/drive/MyDrive/WH_RDCC"
+  data_raw: "${paths.project_dir}/data_raw"
+  data_out: "${paths.project_dir}/data"
+  figures_out: "${paths.project_dir}/figures"
+  models_out: "${paths.project_dir}/models"
+
+# ============================================================
+# DICHASUS dataset
+# ============================================================
+dataset:
+  name: "dichasus"
+  antenna_count: 32
+  subcarriers: 1024
+  channels: 2  # Re/Im
+  
+  # Download
+  download_urls:
+    cf02: "https://darus.uni-stuttgart.de/api/access/datafile/:persistentId?persistentId=doi:10.18419/DARUS-2854/14"
+    cf03: "https://darus.uni-stuttgart.de/api/access/datafile/:persistentId?persistentId=doi:10.18419/DARUS-2854/15"
+    cf04: "https://darus.uni-stuttgart.de/api/access/datafile/:persistentId?persistentId=doi:10.18419/DARUS-2854/16"
+  
+  # Preprocessing
+  chunk_size: 500      # campioni per chunk
+  every_n: 5           # sottocampionamento
+  train_ratio: 0.8
+  
+  # Temporal sequences
+  seq_len: 16
+  stride: 4
+  max_gap_ms: 750      # gap massimo tra campioni consecutivi [ms]
+
+# ============================================================
+# Architettura
+# ============================================================
+encoder:
+  name: "CSIEncoder"
+  latent_dim: 8
+  conv_layers:
+    - {in_channels: 2, out_channels: 16, kernel: [1,7], stride: [1,2], padding: [0,3]}
+    - {in_channels: 16, out_channels: 32, kernel: [1,7], stride: [1,2], padding: [0,3]}
+    - {in_channels: 32, out_channels: 64, kernel: [1,7], stride: [1,2], padding: [0,3]}
+    - {in_channels: 64, out_channels: 64, kernel: [2,7], stride: [2,2], padding: [0,3]}
+    - {in_channels: 64, out_channels: 128, kernel: [2,7], stride: [2,4], padding: [0,3]}
+  proj: [128, 64, "latent_dim"]
+  normalization: "l2"
+
+residual_net:
+  name: "ResidualNet"
+  latent_dim: 8
+  hidden_dim: 64
+  activation: "tanh"
+
+# ============================================================
+# Loss functions
+# ============================================================
+losses:
+  contrastive_loss:
+    temperature: 0.07
+  wiener_hopf_loss:
+    eps: 1e-4           # regolarizzazione per W*
+
+# ============================================================
+# Training
+# ============================================================
+training:
+  # Fasi
+  bootstrap_epochs: 40
+  joint_epochs: 100
+  wh_update_every: 5
+  
+  # Ottimizzazione
+  batch_size: 32
+  lr: 0.001
+  weight_decay: 0.0001
+  scheduler: "cosine_annealing"
+  scheduler_eta_min: 0.00001
+  
+  # Gradiente
+  grad_clip: 1.0
+  
+  # Regularization (ablation)
+  lambda_wh: 5.0        # peso della loss WH (ottimale da ablation)
+
+# ============================================================
+# Evaluation
+# ============================================================
+evaluation:
+  k_neighbors: 10       # per TW/CT
+  kruskal_stress: true
+  metrics:
+    - "mae"
+    - "trustworthiness"
+    - "continuity"
+    - "kruskal_stress"
+    - "spectral_radius"
+    - "prediction_error"
+    - "residual_norm"
+
+# ============================================================
+# Experiment tracking
+# ============================================================
+logging:
+  save_checkpoints: true
+  save_frequency: 10    # epoche
+  log_frequency: 10     # epoche
+  history_keys: ["cc_loss", "wh_loss", "phase"]
+
+# ============================================================
+# Ablation study (override)
+# ============================================================
+ablation:
+  lambda_values: [0, 0.1, 0.5, 1.0, 5.0, 10.0, 20.0]
+  latent_dims: [2, 4, 8, 16]
+  bootstrap_epochs_values: [20, 40, 60]
+
+# ============================================================
+# GPU / device
+# ============================================================
+device:
+  use_cuda: true
+  cuda_device: 0
