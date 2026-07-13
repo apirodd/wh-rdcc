@@ -1,0 +1,16 @@
+{
+  "wh_extract_latents_s": 9.64,
+  "wh_solve_s": 0.000531,
+  "wh_total_s": 9.64,
+  "epoch_baseline_s": 11.81,
+  "epoch_warden_s": 11.93,
+  "loss_overhead_pct": 1.0,
+  "train_total_baseline_min": 27.6,
+  "train_total_warden_min": 31.1,
+  "train_overhead_pct": 13.0,
+  "inference_per_frame_ms": 1.04,
+  "params_encoder": 199864,
+  "params_residual": 5256,
+  "params_W": 64,
+  "gpu": "NVIDIA L4"
+}
