@@ -1,57 +1,80 @@
-# WH-RDCC: Wiener-Hopf Residual Dynamic Channel Charting
+# WARDEN: Wiener-Adaptive Residual Dynamic ENcoder
 
-[![IEEE WCL](https://img.shields.io/badge/IEEE-WCL%202025-blue)](https://ieeexplore.ieee.org)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-green)](https://python.org)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.2%2B-orange)](https://pytorch.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
-Official implementation of the paper:
+Official implementation of:
 
-> **Wiener-Hopf Residual Dynamic Channel Charting for 6G Semantic Localization**  
-> Andrea Piroddi, Triantafyllos Kanakis, Michael Opoku Ogyeman  
-> IEEE Wireless Communications Letters, 2025  
-> [[Paper]](#) · [[arXiv]](#) · [[DICHASUS Dataset]](https://dichasus.inue.uni-stuttgart.de/datasets/data/dichasus-cf0x/)
+> **WARDEN: Wiener-Adaptive Residual Dynamic ENcoder for Channel Charting in Future Cellular Networks**
+> Andrea Piroddi, Triantafyllos Kanakis, Michael Opoku Agyeman
 
----
-
-## Overview
-
-WH-RDCC is a self-supervised Channel Charting architecture that integrates an
-analytically optimal **Wiener-Hopf transition matrix** as a structured prior for
-latent-space dynamics.
-
-The key idea: instead of learning latent dynamics entirely from data (as in JEPA or
-LSTM-AE approaches), we decompose the prediction problem into:
-
-1. **Optimal linear component** — computed in closed form via the Wiener-Hopf solution
-2. **Non-linear residual** — learned by a lightweight MLP
-
-This decomposition improves both the geometric fidelity of the channel chart and
-the physical interpretability of the latent space.
-
-### Key Results (DICHASUS cf0x, d=8)
-
-| Method | MAE [m] ↓ | TW ↑ | CT ↑ | Pred Error ↓ |
-|--------|-----------|------|------|-------------|
-| CC Baseline | 3.094 | 0.844 | 0.917 | 0.241 |
-| WH-RDCC λ=5 | **2.916** | 0.886 | **0.922** | 0.204 |
-| WH-RDCC λ=20 | 3.120 | **0.900** | 0.905 | **0.151** |
-
-- TW improves **monotonically** with λ (+6.6% at λ=20)
-- MAE reduced by **5.8%** at λ=5
-- Linear prediction error reduced by **37%** at λ=20
-- Spectral radius ρ(W*) ∈ [0.976, 0.994] — physically consistent with quasi-conservative UE dynamics
-
----
-
-## Architecture
+WARDEN is a self-supervised Channel Charting architecture that integrates an
+**analytically optimal Wiener-Hopf transition matrix** as a structured prior
+for latent-space dynamics. Instead of learning the latent transition model
+entirely from data (as in JEPA- or LSTM-based temporal Channel Charting),
+WARDEN decomposes the prediction problem into a closed-form linear component
+and a learned non-linear residual:
 
 ```
-CSI_t  →  ┐
-           ├→  Encoder f_θ (CNN)  →  z_t  →  ┬→  L_CC (NT-Xent)
-CSI_t+1 → ┘                        z_t+1 →  ┤
-                                              └→  L_WH = ‖z_t+1 - W*z_t - g_φ(z_t)‖²
-                                    W* ← Wiener-Hopf({z_t})  (every Δ epochs)
+z_{t+1} ≈ W* z_t + g_φ(z_t)
+         └──┬──┘   └───┬───┘
+       Wiener-Hopf   residual MLP
+       (closed form)  (learned)
+```
+
+The linear operator `W*` is the minimum mean-square-error one-step predictor,
+recomputed in closed form from the second-order statistics of the latent
+sequence; the residual network `g_φ` only has to capture the genuinely
+non-linear part of the dynamics.
+
+---
+
+## Key results
+
+Validated on four environments (three real-world massive MIMO datasets and one
+synthetic ray-tracing scenario) with **identical hyperparameters** and multiple
+random seeds. Trustworthiness (TW), Continuity (CT), and linear prediction
+error (PE) improve **monotonically** with the regularisation strength `λ` on
+all four environments; localisation MAE improves on all three real datasets.
+
+| Dataset | λ | MAE [m] | TW | CT | PE |
+|---|---|---|---|---|---|
+| cf0x (distributed, factory) | 0 | 3.101±0.141 | 0.858 | 0.923 | 0.243 |
+| | 20 | **2.748±0.180** | **0.917** | **0.925** | **0.157** |
+| cf12 (distributed, 24 ant.) | 0 | 4.064±0.103 | 0.883 | 0.959 | 0.400 |
+| | 20 | **3.618±0.288** | **0.980** | **0.992** | **0.210** |
+| 015x (co-located, lab) | 0 | 1.632±0.043 | 0.828 | 0.882 | 0.531 |
+| | 20 | **1.460±0.045** | **0.933** | **0.960** | **0.296** |
+| DeepMIMO (outdoor, synthetic) | 0 | 114.7±1.4 | 0.885 | 0.975 | 0.177 |
+| | 20 | 112.6±5.1 | **0.996** | **0.999** | **0.069** |
+
+Under a unified protocol against learned temporal mechanisms (LSTM-CC,
+JEPA-CC), WARDEN shows the **lowest seed variance** and is the **only** method
+that improves the latent dynamics without degrading any geometric metric,
+while adding **no inference overhead**.
+
+---
+
+## Repository structure
+
+```
+wh-rdcc/
+├── warden_env.py                  # core: encoder, W*, loss, evaluation
+├── src/
+│   ├── preprocessing_dichasus.py  # DICHASUS TFRecords -> .npy
+│   ├── preprocessing_deepmimo.py  # DeepMIMO scenario -> .npy
+│   └── run_experiment.py          # single WARDEN training run
+├── scripts/
+│   ├── phase2_statistics.py       # multi-seed statistical runs
+│   ├── phase3_ablation.py         # ablation on d, L, Δ
+│   ├── phase4_baselines.py        # LSTM-CC and JEPA-CC baselines
+│   └── phase5_overhead.py         # computational-overhead timing
+├── notebooks/
+│   └── 01_full_pipeline.ipynb     # end-to-end demo (Colab-ready)
+├── results/                       # JSON metrics reproducing the paper tables
+├── requirements.txt
+└── LICENSE
 ```
 
 ---
@@ -59,168 +82,102 @@ CSI_t+1 → ┘                        z_t+1 →  ┤
 ## Installation
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/wh-rdcc.git
+git clone https://github.com/apirodd/wh-rdcc.git
 cd wh-rdcc
 pip install -r requirements.txt
 ```
 
-### Requirements
+A CUDA-capable GPU is recommended (experiments in the paper use a single
+NVIDIA T4). Automatic mixed precision is enabled by default.
 
+---
+
+## Data preparation
+
+### DICHASUS (real datasets)
+
+The DICHASUS measurements are publicly available from the University of
+Stuttgart. Download the TFRecords and the reference-transmitter offset files
+for the scenarios of interest (`cf0x`, `cf1x`, `015x`) and run:
+
+```bash
+python -m src.preprocessing_dichasus --scenario cf0x --out data/cf0x
 ```
-torch>=2.2.0
-torchvision>=0.17.0
-numpy>=1.26.0
-scipy>=1.12.0
-scikit-learn>=1.4.0
-matplotlib>=3.8.0
-seaborn>=0.13.0
-pyyaml>=6.0.1
-tqdm>=4.66.0
-tensorflow>=2.15.0   # for DICHASUS TFRecord parsing only
+
+This produces, in `data/cf0x/`:
+```
+train_csi.npy         (N, A, 1024, 2)  float32, per-sample normalised
+train_positions.npy   (N, 2)           float32
+train_timestamps.npy  (N,)             float64
+test_*.npy            (same layout)
+```
+
+### DeepMIMO (synthetic scenario)
+
+Fully reproducible from a fixed seed (no manual download of intermediate
+files needed):
+
+```bash
+python -m src.preprocessing_deepmimo --scenario asu_campus_3p5 --out data/deepmimo
 ```
 
 ---
 
-## Data Preparation
+## Running experiments
 
-Download the DICHASUS cf0x dataset from the
-[University of Stuttgart DaRUS repository](https://darus.uni-stuttgart.de/dataset.xhtml?persistentId=doi:10.18419/DARUS-2854):
-
-```bash
-mkdir -p data_raw
-cd data_raw
-
-# Download via DaRUS API
-BASE=https://darus.uni-stuttgart.de/api/access/datafile
-wget -O dichasus-cf02.tfrecords "$BASE/:persistentId?persistentId=doi:10.18419/DARUS-2854/14"
-wget -O dichasus-cf03.tfrecords "$BASE/:persistentId?persistentId=doi:10.18419/DARUS-2854/15"
-wget -O dichasus-cf04.tfrecords "$BASE/:persistentId?persistentId=doi:10.18419/DARUS-2854/16"
-```
-
-Also download the offset calibration files and spec.json (see `scripts/download_dichasus.sh`).
-
-Then run preprocessing:
+### Single run
 
 ```bash
-python src/preprocessing.py
+# WARDEN at λ=20 on cf0x, seed 0
+python -m src.run_experiment --data_dir data/cf0x --lam 20 --seed 0
+
+# Static baseline (λ=0)
+python -m src.run_experiment --data_dir data/cf0x --lam 0 --seed 0
 ```
 
-This produces:
+### Reproduce the paper tables
+
+```bash
+python -m scripts.phase2_statistics   # multi-dataset, multi-seed  -> results/phase2_results.json
+python -m scripts.phase3_ablation     # d / L / Δ ablation         -> results/phase3_ablation.json
+python -m scripts.phase4_baselines    # LSTM-CC, JEPA-CC           -> results/phase4_baselines.json
+python -m scripts.phase5_overhead     # timing                     -> results/phase5_overhead.json
 ```
-data/
-  train_csi.npy        (N_train, 32, 1024, 2)  float32
-  train_positions.npy  (N_train, 2)             float32
-  train_timestamps.npy (N_train,)               float64
-  test_csi.npy         (N_test,  32, 1024, 2)  float32
-  test_positions.npy   (N_test,  2)             float32
-  test_timestamps.npy  (N_test,)                float64
-```
+
+Each batch script saves incrementally and skips completed runs, so it can be
+interrupted and resumed safely.
 
 ---
 
-## Training
+## Method summary
 
-```bash
-# Train WH-RDCC with default config (λ=5)
-python src/train.py --config configs/default.yaml
+Training proceeds in two stages:
 
-# Train with specific λ
-python src/train.py --lambda_wh 20.0
+1. **Bootstrap** (`E0` epochs): train the encoder with the NT-Xent contrastive
+   charting loss only, then estimate `W*` in closed form.
+2. **Joint** (`E1` epochs): optimise the encoder and residual network with
+   `L = L_CC + λ · L_WH`, re-estimating `W*` every `Δ` epochs.
 
-# Train baseline (no WH regularisation)
-python src/train.py --lambda_wh 0.0 --run_name baseline
-```
+The eigenspectrum of `W*` provides an interpretable, supervision-free diagnostic
+of user-equipment kinematics: for quasi-uniform motion, its eigenvalues cluster
+near the unit circle.
 
-### Configuration
-
-Key hyperparameters in `configs/default.yaml`:
-
-```yaml
-latent_dim: 8          # d — ablation: 2, 4, 8, 16
-lambda_wh: 5.0         # regularisation weight
-bootstrap_epochs: 40   # Phase 1 epochs
-joint_epochs: 100      # Phase 2 epochs
-wh_update_every: 5     # W* re-estimation frequency
-batch_size: 32
-learning_rate: 5e-4
-seq_len: 16            # temporal sequence length
-max_gap_ms: 750        # maximum inter-sample gap
-```
-
----
-
-## Evaluation
-
-```bash
-python src/evaluate.py --checkpoint runs/wh_rdcc_lambda5/model.pt
-```
-
-Outputs:
-- MAE (after affine alignment)
-- Trustworthiness and Continuity (k=10)
-- Kruskal Stress
-- Prediction error PE = E[‖z_{t+1} - W*z_t‖]
-- Spectral radius ρ(W*)
-- Effective rank of W*
-- Residual norm ‖g_φ(z_t)‖
-
----
-
-## Reproducing Paper Results
-
-```bash
-# Full ablation study (λ ∈ {0, 0.1, 0.5, 1, 5, 10, 20})
-python scripts/run_ablation.py
-
-# Generate all paper figures
-python scripts/generate_figures.py
-
-# Results are saved to results/ablation_results.json
-```
-
----
-
-## Project Structure
-
-```
-wh-rdcc/
-├── src/
-│   ├── preprocessing.py   # DICHASUS TFRecord → NumPy
-│   ├── dataset.py         # PyTorch Dataset (temporal sequences)
-│   ├── encoder.py         # CNN encoder f_θ
-│   ├── wiener_hopf.py     # W* estimation (closed-form)
-│   ├── residual_net.py    # MLP residual g_φ
-│   ├── losses.py          # NT-Xent + WH loss
-│   ├── train.py           # Two-phase training loop
-│   └── evaluate.py        # Metrics: TW, CT, MAE, PE, ρ(W*)
-├── scripts/
-│   ├── download_dichasus.sh
-│   ├── run_ablation.py
-│   └── generate_figures.py
-├── configs/
-│   └── default.yaml
-├── notebooks/
-│   └── 01_colab_full_pipeline.ipynb  # End-to-end on Google Colab
-├── figures/               # Paper figures (PDF + PNG)
-├── requirements.txt
-├── LICENSE
-└── README.md
-```
+Default configuration (used across all datasets, no per-dataset tuning):
+`d = 8`, `L = 16`, `Δ = 5`, Adam (lr `1e-3`, wd `1e-4`), cosine annealing,
+batch size 32, 140 epochs (`E0 = 40`, `E1 = 100`).
 
 ---
 
 ## Citation
 
-If you use this code in your research, please cite:
-
 ```bibtex
-@article{piroddi2025whrdcc,
-  author  = {Piroddi, Andrea and Kanakis, Triantafyllos, Opoku Ogyeman Michael},
-  title   = {Wiener-Hopf Residual Dynamic Channel Charting
-             for {6G} Semantic Localization},
-  journal = {IEEE Wireless Communications Letters},
-  year    = {2025},
-  note    = {to appear}
+@article{piroddi2025warden,
+  author  = {Piroddi, Andrea and Kanakis, Triantafyllos
+             and Opoku Agyeman, Michael},
+  title   = {{WARDEN}: {Wiener-Adaptive} Residual Dynamic {ENcoder}
+             for Channel Charting in Future Cellular Networks},
+  journal = {IEEE Access},
+  year    = {2025}
 }
 ```
 
@@ -228,18 +185,11 @@ If you use this code in your research, please cite:
 
 ## Acknowledgements
 
-This work was carried out as part of a PhD by Published Work at the
-University of Northampton (CAST Centre), supervised by Dr. Aldo Kanakis.
-The authors thank the Institute of Telecommunications (INÜ) at the
-University of Stuttgart for making the DICHASUS dataset publicly available.
-
-Experiments were conducted on Google Colab with NVIDIA Tesla T4 GPU.
-
----
+This work was carried out as part of a PhD by Published Work at the University
+of Northampton. The authors thank the Institute of Telecommunications (INÜ) at
+the University of Stuttgart for the publicly available DICHASUS dataset, and
+the DeepMIMO project for the synthetic ray-tracing scenarios.
 
 ## License
 
-This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.
-
-The DICHASUS dataset is licensed under
-[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+MIT — see [LICENSE](LICENSE). The DICHASUS dataset is licensed under CC BY 4.0.
